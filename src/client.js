@@ -35,6 +35,7 @@ module.exports = class IrcClient extends EventEmitter {
             nick: 'ircbot',
             username: 'ircbot',
             gecos: 'ircbot',
+            encoding_autodetect: false,
             encoding: 'utf8',
             version: 'node.js irc-framework',
             enable_chghost: false,

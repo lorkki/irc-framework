@@ -10,6 +10,7 @@ var util            = require('util');
 var EventEmitter    = require('events').EventEmitter;
 var Socks           = require('socksjs');
 var iconv           = require('iconv-lite');
+var jschardet       = require('jschardet');
 
 var SOCK_DISCONNECTED = 0;
 var SOCK_CONNECTING = 1;
@@ -154,7 +155,8 @@ module.exports = class Connection extends EventEmitter {
     }
 
     onSocketData(data) {
-    	this.incoming_buffer += iconv.decode(data, this.encoding);
+        var encoding = this.detectEncoding(data);
+    	this.incoming_buffer += iconv.decode(data, encoding);
 
     	var lines = this.incoming_buffer.split('\n');
     	if (lines[lines.length - 1] !== '') {
@@ -198,10 +200,36 @@ module.exports = class Connection extends EventEmitter {
     }
 
 
-    setEncoding(encoding) {
-        var encoded_test;
+    detectEncoding(data) {
+        if (!this.options.encoding_autodetect) {
+            return this.encoding;
+        }
 
+        var detected_encoding = jschardet.detect(data).encoding;
+
+        this.debugOut('Connection.detectEncoding() detected ' + detected_encoding);
+
+        if (detected_encoding === 'ascii' || !this.testEncoding(detected_encoding)) {
+            return this.encoding;
+        } else {
+            return detected_encoding;
+        }
+    }
+
+    setEncoding(encoding) {
         this.debugOut('Connection.setEncoding() encoding=' + encoding);
+
+        if (this.testEncoding(encoding)) {
+            this.encoding = encoding;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+
+    testEncoding(encoding) {
+        var encoded_test;
 
         try {
             encoded_test = iconv.encode('TEST', encoding);
@@ -209,7 +237,6 @@ module.exports = class Connection extends EventEmitter {
             // the ASCII charset required by the IRC protocols
             // (Avoid the use of base64 or incompatible encodings)
             if (encoded_test == 'TEST') { // jshint ignore:line
-                this.encoding = encoding;
                 return true;
             }
             return false;
