@@ -10,7 +10,6 @@ var util            = require('util');
 var EventEmitter    = require('events').EventEmitter;
 var Socks           = require('socksjs');
 var iconv           = require('iconv-lite');
-var isValidUTF8     = require('utf-8-validate');
 
 var SOCK_DISCONNECTED = 0;
 var SOCK_CONNECTING = 1;
@@ -28,7 +27,6 @@ module.exports = class Connection extends EventEmitter {
         this.socket_events = [];
 
         this.encoding = 'utf8';
-        this.encoding_fallback = 'cp1252';
         this.incoming_buffer = Buffer.from('');
     }
 
@@ -77,10 +75,6 @@ module.exports = class Connection extends EventEmitter {
 
         if (!options.encoding || !this.setEncoding(options.encoding)) {
             this.setEncoding('utf8');
-        }
-
-        if (options.encoding_fallback) {
-            this.setEncodingFallback(options.encoding_fallback);
         }
 
         this.state = SOCK_CONNECTING;
@@ -168,9 +162,7 @@ module.exports = class Connection extends EventEmitter {
             this.incoming_buffer.length + data.length
             );
 
-        this.splitLines().forEach(
-            line => this.emit('line', this.decodeBuffer(line))
-            );
+        this.splitLines().forEach(line => this.emit('line', line));
     }
 
     disposeSocket() {
@@ -225,47 +217,7 @@ module.exports = class Connection extends EventEmitter {
 
     setEncoding(encoding) {
         this.debugOut('Connection.setEncoding() encoding=' + encoding);
-
-        if (this.testEncoding(encoding)) {
-            this.encoding = encoding;
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    setEncodingFallback(encoding) {
-        this.debugOut('Connection.setEncodingFallback() encoding=' + encoding);
-
-        if (this.testEncoding(encoding)) {
-            this.encoding_fallback = encoding;
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    testEncoding(encoding) {
-        try {
-            const encoded_test = iconv.encode('TEST', encoding);
-            // This test is done to check if this encoding also supports
-            // the ASCII charset required by the IRC protocols
-            // (Avoid the use of base64 or incompatible encodings)
-            if (encoded_test == 'TEST') { // jshint ignore:line
-                return true;
-            }
-            return false;
-        } catch (err) {
-            return false;
-        }
-    }
-
-    decodeBuffer(data) {
-        if (this.encoding === 'utf8' && this.encoding_fallback && !isValidUTF8(data)) {
-            return iconv.decode(data, this.encoding_fallback);
-        } else {
-            return iconv.decode(data, this.encoding);
-        }
+        this.encoding = encoding;
     }
 
     getAddressFamily(addr) {
